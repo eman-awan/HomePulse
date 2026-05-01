@@ -1,4 +1,4 @@
-# 🏠 Smart Home App (React Native + Expo)
+# 🏠 HomePulse (React Native + Expo)
 
 A production-style mobile application for managing smart home devices, tracking energy consumption, and automating daily routines — built with a focus on **clean architecture, offline-first design, and scalable structure**.
 
