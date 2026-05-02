@@ -17,10 +17,12 @@ const LogoutIcon = () => (
 export default function Profile() {
   const router = useRouter();
   const { user, logout, updateBudget } = useAuthStore();
-  const { devices, rooms } = useDeviceStore();
+  const { devices, rooms, utilityRate, updateUtilityRate, generateHistory } = useDeviceStore();
   
   const [budgetInput, setBudgetInput] = useState(user?.budget_limit?.toString() || '500');
   const [isEditingBudget, setIsEditingBudget] = useState(false);
+  const [utilityInput, setUtilityInput] = useState(utilityRate.toString());
+  const [isEditingUtility, setIsEditingUtility] = useState(false);
 
   const handleSaveBudget = () => {
     const newBudget = parseFloat(budgetInput);
@@ -30,6 +32,17 @@ export default function Profile() {
     } else {
       Alert.alert('Error', 'Please enter a valid budget amount.');
       setBudgetInput(user?.budget_limit?.toString() || '500');
+    }
+  };
+
+  const handleSaveUtility = () => {
+    const newRate = parseFloat(utilityInput);
+    if (!isNaN(newRate) && newRate > 0) {
+      updateUtilityRate(newRate);
+      setIsEditingUtility(false);
+    } else {
+      Alert.alert('Error', 'Please enter a valid rate.');
+      setUtilityInput(utilityRate.toString());
     }
   };
 
@@ -79,9 +92,10 @@ export default function Profile() {
           </View>
 
           <View style={s.section}>
-            <Text style={s.sectionTitle}>Preferences</Text>
+            <Text style={s.sectionTitle}>System Settings</Text>
             
             <View style={s.budgetContainer}>
+              {/* Budget Setting */}
               {isEditingBudget ? (
                 <View style={s.budgetEditRow}>
                   <View style={{flex: 1}}>
@@ -106,20 +120,72 @@ export default function Profile() {
                   <Text style={s.editLink}>Edit</Text>
                 </TouchableOpacity>
               )}
+
+              <View style={{ height: 1, backgroundColor: '#F0F0F5', marginVertical: 16 }} />
+
+              {/* Utility Rate Setting */}
+              {isEditingUtility ? (
+                <View style={s.budgetEditRow}>
+                  <View style={{flex: 1}}>
+                    <InputField
+                      label="Utility Rate ($/kWh)"
+                      placeholder="e.g. 0.12"
+                      value={utilityInput}
+                      onChangeText={setUtilityInput}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <TouchableOpacity style={s.saveBtn} onPress={handleSaveUtility}>
+                    <Text style={s.saveBtnText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={s.settingRow} onPress={() => setIsEditingUtility(true)}>
+                  <View>
+                    <Text style={s.settingLabel}>Electricity Rate ($/kWh)</Text>
+                    <Text style={s.settingValue}>${utilityRate.toFixed(2)} per kWh</Text>
+                  </View>
+                  <Text style={s.editLink}>Edit</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
-            <Text style={[s.sectionTitle, { marginTop: 24 }]}>Simulation Controls</Text>
+            <Text style={[s.sectionTitle, { marginTop: 24 }]}>Professional Tools</Text>
             <View style={s.simCard}>
               <TouchableOpacity style={s.simBtn} onPress={() => {
+                useDeviceStore.getState().syncAllRoomBudgets();
+                Alert.alert('Success', 'All room budgets optimized based on your appliances!');
+              }}>
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                  <Path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 13h.01M12 13h.01M15 13h.01M12 17h.01M16 21H8a2 2 0 01-2-2V5a2 2 0 012-2h8a2 2 0 012 2v14a2 2 0 01-2 2z" stroke="#C5A85F" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={s.simBtnText}>Sync Smart Budgets</Text>
+              </TouchableOpacity>
+
+              <View style={{ height: 1, backgroundColor: '#F0F0F5', marginVertical: 12 }} />
+
+              <TouchableOpacity style={s.simBtn} onPress={() => {
                 useDeviceStore.getState().simulateMonthEnd();
-                Alert.alert('Simulation', 'Current month consolidated and charts updated!');
+                Alert.alert('Success', 'Current usage consolidated to history!');
               }}>
                 <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
                   <Path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#C5A85F" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
-                <Text style={s.simBtnText}>Simulate Month End</Text>
+                <Text style={s.simBtnText}>Consolidate Month End</Text>
               </TouchableOpacity>
-              <Text style={s.simDesc}>Instantly push current expenses to historical charts and reset the monthly counters.</Text>
+              
+              <View style={{ height: 1, backgroundColor: '#F0F0F5', marginVertical: 12 }} />
+
+              <TouchableOpacity style={s.simBtn} onPress={() => {
+                generateHistory();
+                Alert.alert('Success', 'Generated 6 months of realistic energy history!');
+              }}>
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                  <Path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6M14 19v-8a2 2 0 00-2-2h-2a2 2 0 00-2 2v8M19 19v-10a2 2 0 00-2-2h-2a2 2 0 00-2 2v10" stroke="#2D3250" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={[s.simBtnText, { color: '#2D3250' }]}>Generate Demo History</Text>
+              </TouchableOpacity>
+              <Text style={s.simDesc}>Populate your charts with seasonal data to see the app in full professional use.</Text>
             </View>
           </View>
 

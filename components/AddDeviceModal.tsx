@@ -129,8 +129,8 @@ export default function AddDeviceModal({ visible, onClose, initialDevice }: AddD
             </ScrollView>
 
             <InputField
-              label="Energy Rate ($/hr)"
-              placeholder="e.g. 5"
+              label="Device Power (Watts)"
+              placeholder="e.g. 100 for bulb, 2000 for AC"
               value={energyRate}
               onChangeText={(text) => { setEnergyRate(text); setError(''); }}
               keyboardType="numeric"

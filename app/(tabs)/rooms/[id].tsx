@@ -1,39 +1,65 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useDeviceStore } from '../../../store/useDeviceStore';
 import CircularGauge from '../../../components/CircularGauge';
 import BottomNav from '../../../components/BottomNav';
 import SafeScreen from '../../../components/SafeScreen';
-import { DeviceIcon } from '../../../components/DeviceCard';
+import DeviceCard from '../../../components/DeviceCard';
+import DeviceModal from '../../../components/AddDeviceModal';
+import DeviceControllerModal from '../../../components/DeviceControllerModal';
+
+const { width } = Dimensions.get('window');
 
 export default function RoomDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const roomId = parseInt(id || '1');
-  const { devices, rooms, dailyBudgets, fetchDevices, fetchRooms, fetchDailyBudgets, toggleDevice, updateTemperature } = useDeviceStore();
+  const { devices, rooms, dailyBudgets, fetchDevices, fetchRooms, fetchDailyBudgets, toggleDevice, updateTemperature, utilityRate, fetchSettings } = useDeviceStore();
 
   const [mode, setMode] = useState<'money' | 'kwh'>('money');
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isControllerVisible, setIsControllerVisible] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<any>(null);
 
-  useEffect(() => { fetchDevices(); fetchRooms(); fetchDailyBudgets(); }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchDevices();
+      fetchRooms();
+      fetchDailyBudgets();
+      fetchSettings();
+      
+      const interval = setInterval(() => {
+        fetchDevices();
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }, [])
+  );
 
   const room = rooms.find(r => r.id === roomId);
   const roomDevices = devices.filter(d => d.room_id === roomId);
   const budget = dailyBudgets.find(b => b.room_id === roomId);
 
-  // Compute actual "Today's Cost" based on active devices (simplified logic)
-  const activeDevices = roomDevices.filter(d => d.status === 1);
-  const computedDailyCost = activeDevices.reduce((sum, d) => sum + ((d.energy_rate * d.device_count) / 30), 0) + (budget?.today_cost || 0);
-
-  const kwhCost = computedDailyCost / 0.12; // arbitrary conversion
-  const kwhBudget = (budget?.budget || 0) / 0.12;
+  const currentRoomCost = roomDevices.reduce((sum, d) => sum + d.monthly_cost, 0);
+  const currentRoomKwh = currentRoomCost / utilityRate;
 
   const handleTempAdjust = (change: number) => {
     if (room) {
       const newTemp = Math.max(16, Math.min(32, room.temperature + change));
       updateTemperature(room.id, newTemp);
     }
+  };
+
+  const handleEditDevice = (device: any) => {
+    setSelectedDevice(device);
+    setIsEditModalVisible(true);
+  };
+
+  const handleControlDevice = (device: any) => {
+    setSelectedDevice(device);
+    setIsControllerVisible(true);
   };
 
   return (
@@ -83,46 +109,60 @@ export default function RoomDetail() {
                 style={[s.toggleBtn, mode === 'kwh' && s.toggleActive]} 
                 onPress={() => setMode('kwh')}
               >
-                <Text style={[s.toggleText, mode === 'kwh' && s.toggleTextActive]}>KWH</Text>
+                <Text style={[s.toggleText, mode === 'kwh' && s.toggleTextActive]}>kWh</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={s.budgetRow}>
             <View style={s.budgetCard}>
-              <Text style={s.budgetLabel}>Today</Text>
+              <Text style={s.budgetLabel}>Room Total</Text>
               <Text style={s.budgetValue}>
-                {mode === 'money' ? `$${computedDailyCost.toFixed(2)}` : `${kwhCost.toFixed(1)}`}
+                {mode === 'money' ? `$${currentRoomCost.toFixed(2)}` : `${currentRoomKwh.toFixed(2)}`}
               </Text>
             </View>
             <View style={s.budgetCard}>
-              <Text style={s.budgetLabel}>Today's Budget</Text>
+              <Text style={s.budgetLabel}>Monthly Budget</Text>
               <Text style={s.budgetValue}>
-                {mode === 'money' ? `$${budget?.budget?.toFixed(2) || '4.03'}` : `${kwhBudget.toFixed(1)}`}
+                {mode === 'money' ? `$${(budget?.budget || 120).toFixed(2)}` : `${((budget?.budget || 120) / (utilityRate || 0.12)).toFixed(1)}`}
               </Text>
             </View>
           </View>
 
           <TouchableOpacity style={s.historyBtn} onPress={() => router.push('/details')}>
-            <Text style={s.historyBtnText}>HISTORY</Text>
+            <Text style={s.historyBtnText}>VIEW ANALYTICS</Text>
           </TouchableOpacity>
 
           <Text style={s.devTitle}>Devices In This Room ({roomDevices.length})</Text>
           <View style={s.devGrid}>
-            {roomDevices.map(d => (
-              <TouchableOpacity key={d.id} style={s.devItem} onPress={() => toggleDevice(d.id, d.status)}>
-                <View style={[s.devIcon, d.status === 1 && s.devIconOn]}>
-                  <DeviceIcon icon={d.icon} color={d.status === 1 ? '#FFF' : '#2D3250'} />
-                </View>
-                <Text style={s.devName}>{d.name}</Text>
-                <View style={[s.statusDot, d.status === 1 ? s.dotOn : s.dotOff]}>
-                  <Text style={[s.statusText, d.status !== 1 && {color: '#8E8E93'}]}>{d.status === 1 ? 'ON' : 'Off'}</Text>
-                </View>
-              </TouchableOpacity>
+            {roomDevices.map(device => (
+              <DeviceCard
+                key={device.id}
+                name={device.name}
+                deviceCount={device.device_count}
+                isOn={device.status === 1}
+                icon={device.icon}
+                onToggle={() => toggleDevice(device.id, device.status)}
+                onPress={() => handleControlDevice(device)}
+                onLongPress={() => handleEditDevice(device)}
+                onEdit={() => handleEditDevice(device)}
+              />
             ))}
           </View>
         </ScrollView>
         <BottomNav />
+        
+        <DeviceModal 
+          visible={isEditModalVisible} 
+          onClose={() => setIsEditModalVisible(false)} 
+          initialDevice={selectedDevice}
+        />
+
+        <DeviceControllerModal 
+          visible={isControllerVisible} 
+          onClose={() => setIsControllerVisible(false)} 
+          device={selectedDevice}
+        />
       </View>
     </SafeScreen>
   );
@@ -151,13 +191,5 @@ const s = StyleSheet.create({
   historyBtn:{backgroundColor:'#2D3250',borderRadius:14,paddingVertical:14,alignItems:'center',marginBottom:24},
   historyBtnText:{color:'#FFF',fontSize:14,fontWeight:'700',letterSpacing:1},
   devTitle:{fontSize:16,fontWeight:'700',color:'#2D3250',marginBottom:16},
-  devGrid:{flexDirection:'row',flexWrap:'wrap',gap:16},
-  devItem:{alignItems:'center',width:80},
-  devIcon:{width:52,height:52,borderRadius:16,backgroundColor:'#F0F0F5',justifyContent:'center',alignItems:'center',marginBottom:8},
-  devIconOn:{backgroundColor:'#2D3250'},
-  devName:{fontSize:12,color:'#2D3250',fontWeight:'500',marginBottom:4,textAlign:'center'},
-  statusDot:{borderRadius:10,paddingHorizontal:10,paddingVertical:3},
-  dotOn:{backgroundColor:'#C5A85F'},
-  dotOff:{backgroundColor:'#E8E8ED'},
-  statusText:{fontSize:10,fontWeight:'600',color:'#FFF'},
+  devGrid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between'},
 });

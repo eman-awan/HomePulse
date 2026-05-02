@@ -9,25 +9,34 @@ import BottomNav from '../../components/BottomNav';
 import SafeScreen from '../../components/SafeScreen';
 import QuickBudgetModal from '../../components/QuickBudgetModal';
 import { useUIStore } from '../../store/useUIStore';
+import DeviceControllerModal from '../../components/DeviceControllerModal';
 
 const { width } = Dimensions.get('window');
+
+import DeviceModal from '../../components/AddDeviceModal';
 
 export default function Home() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { devices, rooms, fetchDevices, fetchRooms, toggleDevice, setSelectedRoom, getTotalExpenses } = useDeviceStore();
+  const { devices, rooms, fetchDevices, fetchRooms, toggleDevice, setSelectedRoom, getTotalExpenses, getForecast, fetchSettings, startSimulationEngine } = useDeviceStore();
   const { toggleSidebar } = useUIStore();
   const [activeRoom, setActiveRoom] = useState(1);
   const [isBudgetModalVisible, setIsBudgetModalVisible] = useState(false);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isControllerVisible, setIsControllerVisible] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<any>(null);
 
   useEffect(() => {
     fetchDevices();
     fetchRooms();
+    fetchSettings();
+    startSimulationEngine();
   }, []);
 
   const roomDevices = devices.filter(d => d.room_id === activeRoom);
   const totalExpenses = getTotalExpenses();
   const budgetLimit = user?.budget_limit || 500;
+  const { cost: forecastCost, trend } = getForecast();
   
   // Calculate width for slider based on expenses vs budget
   const expensePercentage = Math.min((totalExpenses / budgetLimit) * 100, 100);
@@ -35,6 +44,11 @@ export default function Home() {
   const handleRoomChange = (roomId: number) => {
     setActiveRoom(roomId);
     setSelectedRoom(roomId);
+  };
+
+  const handleEditDevice = (device: any) => {
+    setSelectedDevice(device);
+    setIsEditModalVisible(true);
   };
 
   const handleSwipeLeft = () => {
@@ -87,8 +101,8 @@ export default function Home() {
                 </Svg>
               </View>
                 <View style={styles.energyTextWrap}>
-                  <Text style={styles.energyLabel}>Estimated Energy</Text>
-                  <Text style={styles.energyLabel}>Expenses This Month</Text>
+                  <Text style={styles.energyLabel}>Monthly Energy Bill</Text>
+                  <Text style={styles.forecastText}>Forecast: ${forecastCost.toFixed(2)} ({trend === 'up' ? '↑ Increasing' : trend === 'down' ? '↓ Decreasing' : '→ Stable'})</Text>
                 </View>
                 <TouchableOpacity 
                   onPress={(e) => { e.stopPropagation(); setIsBudgetModalVisible(true); }}
@@ -117,17 +131,23 @@ export default function Home() {
 
             {/* Room Tabs */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.roomTabsScroll} contentContainerStyle={styles.roomTabsContainer}>
-              {rooms.map((room) => (
-                <TouchableOpacity
-                  key={room.id}
-                  style={[styles.roomTab, activeRoom === room.id && styles.roomTabActive]}
-                  onPress={() => handleRoomChange(room.id)}
-                >
-                  <Text style={[styles.roomTabText, activeRoom === room.id && styles.roomTabTextActive]}>
-                    {room.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {rooms.map((room) => {
+                const roomCost = devices.filter(d => d.room_id === room.id).reduce((sum, d) => sum + d.monthly_cost, 0);
+                return (
+                  <TouchableOpacity
+                    key={room.id}
+                    style={[styles.roomTab, activeRoom === room.id && styles.roomTabActive]}
+                    onPress={() => handleRoomChange(room.id)}
+                  >
+                    <Text style={[styles.roomTabText, activeRoom === room.id && styles.roomTabTextActive]}>
+                      {room.name}
+                    </Text>
+                    <Text style={[styles.roomCostText, activeRoom === room.id && styles.roomCostTextActive]}>
+                      ${roomCost.toFixed(2)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
 
             {/* View Room Link */}
@@ -148,6 +168,9 @@ export default function Home() {
                   isOn={device.status === 1}
                   icon={device.icon}
                   onToggle={() => toggleDevice(device.id, device.status)}
+                  onPress={() => handleControlDevice(device)}
+                  onLongPress={() => handleEditDevice(device)}
+                  onEdit={() => handleEditDevice(device)}
                 />
               ))}
             </View>
@@ -156,6 +179,16 @@ export default function Home() {
         </View>
       </SafeScreen>
       <QuickBudgetModal visible={isBudgetModalVisible} onClose={() => setIsBudgetModalVisible(false)} />
+      <DeviceModal 
+        visible={isEditModalVisible} 
+        onClose={() => setIsEditModalVisible(false)} 
+        initialDevice={selectedDevice}
+      />
+      <DeviceControllerModal 
+        visible={isControllerVisible} 
+        onClose={() => setIsControllerVisible(false)} 
+        device={selectedDevice}
+      />
     </>
   );
 }
@@ -173,7 +206,8 @@ const styles = StyleSheet.create({
   energyCardInner: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   energyIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(197,168,95,0.2)', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   energyTextWrap: { flex: 1 },
-  energyLabel: { fontSize: 13, color: 'rgba(255,255,255,0.85)', lineHeight: 18 },
+  energyLabel: { fontSize: 13, color: 'rgba(255,255,255,0.85)', lineHeight: 18, fontWeight: '600' },
+  forecastText: { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   sliderContainer: { marginTop: 4 },
   sliderTrack: { height: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 4, position: 'relative' },
   sliderFill: { height: 8, backgroundColor: '#C5A85F', borderRadius: 4 },
@@ -187,6 +221,8 @@ const styles = StyleSheet.create({
   roomTabActive: { borderBottomWidth: 2, borderBottomColor: '#2D3250' },
   roomTabText: { fontSize: 14, color: '#8E8E93', fontWeight: '500' },
   roomTabTextActive: { color: '#2D3250', fontWeight: '600' },
+  roomCostText: { fontSize: 10, color: '#8E8E93', marginTop: 2, textAlign: 'center' },
+  roomCostTextActive: { color: '#C5A85F', fontWeight: '700' },
   viewRoomLink: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', marginBottom: 14, gap: 4 },
   viewRoomText: { fontSize: 13, color: '#C5A85F', fontWeight: '600' },
   devicesGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },

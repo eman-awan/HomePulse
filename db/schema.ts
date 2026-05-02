@@ -30,7 +30,10 @@ export const createTables = () => {
       monthly_cost REAL DEFAULT 0,
       icon TEXT DEFAULT 'bulb',
       last_toggled TEXT,
-      usage_hours REAL DEFAULT 0
+      usage_hours REAL DEFAULT 0,
+      value REAL DEFAULT 0,
+      mode TEXT DEFAULT 'auto',
+      secondary_value REAL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS usage (
@@ -63,5 +66,7 @@ export const createTables = () => {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('utility_rate', '0.12');
   `);
 };

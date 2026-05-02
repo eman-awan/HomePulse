@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { View, Text, Switch, StyleSheet, Animated, Pressable } from 'react-native';
+import { View, Text, Switch, StyleSheet, Animated, Pressable, TouchableOpacity } from 'react-native';
 import Svg, { Path, Rect, Circle, Line } from 'react-native-svg';
 
 interface DeviceCardProps {
@@ -8,6 +8,9 @@ interface DeviceCardProps {
   isOn: boolean;
   icon: string;
   onToggle: () => void;
+  onPress: () => void; // New
+  onLongPress?: () => void;
+  onEdit?: () => void;
 }
 
 const DeviceIcon = ({ icon, color }: { icon: string; color: string }) => {
@@ -62,9 +65,16 @@ const DeviceIcon = ({ icon, color }: { icon: string; color: string }) => {
   }
 };
 
+const EditIcon = ({ color }: { color: string }) => (
+  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+    <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
 export { DeviceIcon };
 
-export default function DeviceCard({ name, deviceCount, isOn, icon, onToggle }: DeviceCardProps) {
+export default function DeviceCard({ name, deviceCount, isOn, icon, onToggle, onPress, onLongPress, onEdit }: DeviceCardProps) {
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -87,14 +97,21 @@ export default function DeviceCard({ name, deviceCount, isOn, icon, onToggle }: 
 
   return (
     <Pressable 
-      onPress={onToggle}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={500}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       style={{ width: '47%', marginBottom: 14 }}
     >
       <Animated.View style={[styles.card, isOn && styles.cardActive, { transform: [{ scale }] }]}>
-        <View style={[styles.iconContainer, isOn && styles.iconContainerActive]}>
-          <DeviceIcon icon={icon} color={isOn ? '#FFFFFF' : '#2D3250'} />
+        <View style={styles.topRow}>
+          <View style={[styles.iconContainer, isOn && styles.iconContainerActive]}>
+            <DeviceIcon icon={icon} color={isOn ? '#FFFFFF' : '#2D3250'} />
+          </View>
+          <TouchableOpacity onPress={onEdit} style={styles.editBtn}>
+            <EditIcon color="#8E8E93" />
+          </TouchableOpacity>
         </View>
         <Text style={styles.deviceName}>{name}</Text>
         <Text style={styles.deviceCount}>{deviceCount} Devices</Text>
@@ -130,14 +147,24 @@ const styles = StyleSheet.create({
   cardActive: {
     backgroundColor: '#FFFFFF',
   },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  editBtn: {
+    padding: 8,
+    marginTop: -8,
+    marginRight: -8,
+  },
   iconContainer: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: 14,
     backgroundColor: '#F0F0F5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
   },
   iconContainerActive: {
     backgroundColor: '#2D3250',
