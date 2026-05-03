@@ -64,6 +64,7 @@ interface DeviceStore {
   addDevice: (name: string, type: string, roomId: number, energyRate: number, count: number, icon: string) => void;
   updateDevice: (id: number, name: string, type: string, roomId: number, energyRate: number, count: number, icon: string) => void;
   removeDevice: (id: number) => void;
+  updateUtilityRate: (rate: number) => void;
 
   getTotalExpenses: () => number;
   getTotalKwh: () => number;
@@ -117,7 +118,14 @@ export const useDeviceStore = create<DeviceStore>((set, get) => ({
   },
 
   fetchSettings: () => {
-    // Utility rate fetching logic...
+    try {
+      const result = db.getFirstSync('SELECT value FROM settings WHERE key = ?', ['utility_rate']) as any;
+      if (result) {
+        set({ utilityRate: parseFloat(result.value) });
+      }
+    } catch (e) {
+      console.log('FETCH SETTINGS ERROR:', e);
+    }
   },
 
   toggleDevice: (id, currentStatus) => {
@@ -134,6 +142,15 @@ export const useDeviceStore = create<DeviceStore>((set, get) => ({
   updateTemperature: (roomId, temp) => {
     db.runSync('UPDATE rooms SET temperature = ? WHERE id = ?', [temp, roomId]);
     get().fetchRooms();
+  },
+
+  updateUtilityRate: (rate) => {
+    try {
+      db.runSync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['utility_rate', rate.toString()]);
+      set({ utilityRate: rate });
+    } catch (e) {
+      console.log('UPDATE UTILITY ERROR:', e);
+    }
   },
 
   addDevice: (name, type, roomId, energyRate, count, icon) => {
