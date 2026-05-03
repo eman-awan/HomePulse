@@ -46,7 +46,7 @@ export const seedDefaultData = () => {
         }
         
         // Randomize cost around 300,000 to 500,000 for realistic looking values
-        const randomCost = Math.floor(Math.random() * 200000) + 250000;
+        const randomCost = Math.floor(Math.random() * 2000) + 2500;
         const randomKwh = randomCost / 1200; // rough kwh calculation
         
         db.runSync(

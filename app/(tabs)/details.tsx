@@ -4,124 +4,152 @@ import Svg, { Path } from 'react-native-svg';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useDeviceStore } from '../../store/useDeviceStore';
 import BarChart from '../../components/BarChart';
-import ExpenseRow from '../../components/ExpenseRow';
 import BottomNav from '../../components/BottomNav';
 import SafeScreen from '../../components/SafeScreen';
 import ExpensesSheet from '../../components/ExpensesSheet';
 
 const { width } = Dimensions.get('window');
 
+const ExpenseIcon = () => (
+  <View style={s.expenseIconWrap}>
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="#2D3250" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  </View>
+);
+
 export default function Details() {
   const router = useRouter();
-  const { monthlyExpenses, fetchMonthlyExpenses, rooms, devices, fetchRooms, fetchDevices } = useDeviceStore();
-  const [viewMode, setViewMode] = useState<'monthly'|'yearly'>('monthly');
-  const [activeBar, setActiveBar] = useState(0);
+  const { monthlyExpenses, fetchMonthlyExpenses, getTotalExpenses, getTotalKwh, getProjectedBill, devices } = useDeviceStore();
+  const [viewMode, setViewMode] = useState<'monthly' | 'yearly'>('monthly');
+
   const [isExpensesSheetVisible, setExpensesSheetVisible] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      fetchMonthlyExpenses(); 
-      fetchRooms();
-      fetchDevices();
-      
-      const interval = setInterval(() => {
-        fetchDevices();
-      }, 1000);
-      
-      return () => clearInterval(interval);
+      fetchMonthlyExpenses();
     }, [])
   );
 
-  // Filter and sort for the chart based on viewMode. 
-  // Simplified for demo: Just showing the most recent 6 items for monthly.
-  const displayExpenses = monthlyExpenses.slice(0, 6).reverse();
+  const currentMonthName = new Date().toLocaleString('en-US', { month: 'long' });
+
+  const displayExpenses = (monthlyExpenses || []).slice(0, 8).reverse();
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  useEffect(() => {
+    if (displayExpenses.length > 0 && activeIndex === -1) {
+      const idx = displayExpenses.findIndex(e => e.month === currentMonthName);
+      if (idx !== -1) setActiveIndex(idx);
+    }
+  }, [displayExpenses]);
 
   const chartData = displayExpenses.map(e => ({
-    label: e.month.substring(0, 3),
-    value: e.cost / 1000,
+    label: e.month.substring(0, 3), 
+    value: e.month === currentMonthName 
+      ? Math.max(1200, Math.min(5000, getProjectedBill())) 
+      : Math.min(5000, e.cost),
   }));
 
-  const activeExpense = displayExpenses[activeBar];
-
-  // Room Breakdown logic
-  const roomBreakdown = rooms.map(room => {
-    const roomDevs = devices.filter(d => d.room_id === room.id);
-    const cost = roomDevs.reduce((sum, d) => sum + d.monthly_cost, 0);
-    return { name: room.name, cost, icon: room.icon };
-  }).sort((a, b) => b.cost - a.cost);
-
-  const totalCurrentCost = roomBreakdown.reduce((sum, r) => sum + r.cost, 0);
-
-  // More realistic daily average calculation
-  const todayCost = activeExpense ? activeExpense.cost / 30 : 0;
-  const todayKwh = activeExpense ? activeExpense.kwh / 30 : 0;
+  const totalCost = getTotalExpenses();
+  const totalKwh = getTotalKwh();
+  const totalTodaySpent = (devices || []).reduce((sum, d) => sum + (d.today_cost || 0), 0);
 
   return (
     <SafeScreen>
-      <View style={s.wrap}>
+      <View style={s.container}>
+        {/* Header */}
+        <View style={s.header}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/')} style={s.backBtn}>
+            <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+              <Path d="M19 12H5M12 19l-7-7 7-7" stroke="#2D3250" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </TouchableOpacity>
+          <Text style={s.headerTitle}>Details</Text>
+          <TouchableOpacity style={s.menuBtn} onPress={() => setExpensesSheetVisible(true)}>
+             <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+               <Path d="M12 5v.01M12 12v.01M12 19v.01" stroke="#2D3250" strokeWidth={3} strokeLinecap="round" />
+             </Svg>
+          </TouchableOpacity>
+        </View>
+
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
-          <View style={s.header}>
-            <TouchableOpacity onPress={() => router.back()}>
-              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none"><Path d="M19 12H5M12 19l-7-7 7-7" stroke="#2D3250" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
-            </TouchableOpacity>
-            <Text style={s.title}>Analytics</Text>
-            <TouchableOpacity onPress={() => setExpensesSheetVisible(true)} style={{ padding: 4 }}>
-              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none"><Path d="M12 5v.01M12 12v.01M12 19v.01" stroke="#2D3250" strokeWidth={3} strokeLinecap="round" /></Svg>
-            </TouchableOpacity>
-          </View>
           
-          {displayExpenses.length === 0 ? (
-            <View style={s.emptyState}>
-              <Text style={s.emptyText}>No historical data yet.</Text>
-              <Text style={s.emptySub}>Start using your devices and use 'Generate Demo History' in Profile to see your progress here!</Text>
-            </View>
-          ) : (
-            <>
-              <View style={s.chartWrap}>
-                <BarChart data={chartData} width={width - 40} height={180} activeIndex={activeBar} />
-              </View>
+          {/* Tabs */}
+          <View style={s.tabWrap}>
+             <TouchableOpacity 
+               style={[s.tab, viewMode === 'monthly' && s.tabActive]} 
+               onPress={() => setViewMode('monthly')}
+             >
+                <Text style={[s.tabText, viewMode === 'monthly' && s.tabTextActive]}>Monthly</Text>
+             </TouchableOpacity>
+             <TouchableOpacity 
+               style={[s.tab, viewMode === 'yearly' && s.tabActive]} 
+               onPress={() => setViewMode('yearly')}
+             >
+                <Text style={[s.tabText, viewMode === 'yearly' && s.tabTextActive]}>Yearly</Text>
+             </TouchableOpacity>
+          </View>
 
-              <View style={s.badgeRow}>
-                <View style={s.badgeCost}>
-                  <Text style={s.badgeCostLabel}>Avg Daily Cost</Text>
-                  <Text style={s.badgeCostValue}>${todayCost.toFixed(2)}</Text>
-                </View>
-                <View style={s.badgeKwh}>
-                  <Text style={s.badgeKwhLabel}>Avg Daily Usage</Text>
-                  <Text style={s.badgeKwhValue}>{todayKwh.toFixed(1)} kWh</Text>
-                </View>
-              </View>
+          {/* Bar Chart (Image 04) */}
+          <View style={s.chartBox}>
+             <BarChart 
+               data={chartData} 
+               width={width - 50} 
+               height={180} 
+               activeIndex={activeIndex} 
+               onSelect={(idx) => setActiveIndex(idx)}
+               barColor="#E8E8ED"
+               activeBarColor="#2D3250"
+             />
+          </View>
 
-              <Text style={s.expTitle}>Energy Hogs (by Room)</Text>
-              <View style={s.hogCard}>
-                {roomBreakdown.map((r, i) => (
-                  <View key={r.name} style={s.hogRow}>
-                    <View style={s.hogInfo}>
-                      <Text style={s.hogName}>{r.name}</Text>
-                      <Text style={s.hogValue}>${r.cost.toFixed(2)}</Text>
+          {/* Today Stats Summary */}
+          <View style={s.statsRow}>
+             <View style={[s.statCard, s.statCardTan]}>
+                <Text style={s.statLabelWhite}>Today Cost</Text>
+                <Text style={s.statValueWhite}>${totalTodaySpent.toFixed(2)}</Text>
+             </View>
+             <View style={s.statCard}>
+                <Text style={s.statLabel}>Today Electricity</Text>
+                <Text style={s.statValue}>{(totalTodaySpent / (useDeviceStore.getState().utilityRate || 0.12)).toFixed(1)} KWH</Text>
+             </View>
+          </View>
+
+          {/* Expenses List */}
+          <View style={s.expensesHeader}>
+             <Text style={s.sectionTitle}>Expenses</Text>
+             <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                <Path d="M9 18l6-6-6-6" stroke="#A0A0A0" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+             </Svg>
+          </View>
+
+          <View style={s.expenseList}>
+             {displayExpenses.slice().reverse().map((e, idx) => {
+               const originalIdx = displayExpenses.length - 1 - idx;
+               const isCurrentMonth = e.month === currentMonthName;
+               const isActive = originalIdx === activeIndex;
+               const costToDisplay = isCurrentMonth ? getProjectedBill() : e.cost;
+               const kwhToDisplay = isCurrentMonth ? (costToDisplay / (useDeviceStore.getState().utilityRate || 0.12)) : e.kwh;
+               
+               return (
+                 <TouchableOpacity 
+                   key={e.id} 
+                   onPress={() => setActiveIndex(originalIdx)}
+                   style={[s.expenseItem, isActive && s.expenseItemActive]}
+                 >
+                    <View style={s.expenseLeft}>
+                       <ExpenseIcon />
+                       <View>
+                          <Text style={s.expenseMonth}>{e.month} {isCurrentMonth && '(Projected)'}</Text>
+                          <Text style={s.expenseKwh}>{kwhToDisplay.toFixed(1)} KWH</Text>
+                       </View>
                     </View>
-                    <View style={s.hogBarBg}>
-                      <View style={[s.hogBarFill, { width: `${totalCurrentCost > 0 ? (r.cost / totalCurrentCost) * 100 : 0}%`, backgroundColor: i === 0 ? '#C55A5A' : '#C5A85F' }]} />
-                    </View>
-                  </View>
-                ))}
-              </View>
+                    <Text style={s.expenseCost}>${costToDisplay.toFixed(2)}</Text>
+                 </TouchableOpacity>
+               );
+             })}
+          </View>
 
-              <Text style={s.expTitle}>Expenses History</Text>
-              {displayExpenses.slice().reverse().map((e, idx) => {
-                const origIndex = displayExpenses.length - 1 - idx;
-                return (
-                  <ExpenseRow 
-                    key={e.id} 
-                    month={e.month + ' ' + e.year} 
-                    kwh={e.kwh} 
-                    cost={e.cost} 
-                    onPress={() => setActiveBar(origIndex)}
-                  />
-                )
-              })}
-            </>
-          )}
         </ScrollView>
         <BottomNav />
       </View>
@@ -134,32 +162,39 @@ export default function Details() {
 }
 
 const s = StyleSheet.create({
-  wrap:{flex:1,backgroundColor:'#F5F5F7'},
-  scroll:{paddingHorizontal:20,paddingTop:10,paddingBottom:20},
-  header:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:24},
-  title:{fontSize:17,fontWeight:'600',color:'#2D3250'},
-  toggleWrap:{flexDirection:'row',backgroundColor:'#E8E8ED',borderRadius:12,padding:3,marginBottom:20,alignSelf:'center'},
-  toggleBtn:{paddingHorizontal:28,paddingVertical:10,borderRadius:10},
-  toggleActive:{backgroundColor:'#FFF'},
-  toggleText:{fontSize:13,color:'#8E8E93',fontWeight:'500'},
-  toggleTextActive:{color:'#2D3250',fontWeight:'600'},
-  chartWrap:{marginBottom:20},
-  badgeRow:{flexDirection:'row',gap:12,marginBottom:24},
-  badgeCost:{flex:1,backgroundColor:'#C55A5A',borderRadius:14,padding:14,alignItems:'center'},
-  badgeCostLabel:{fontSize:11,color:'rgba(255,255,255,0.8)',marginBottom:4},
-  badgeCostValue:{fontSize:17,fontWeight:'700',color:'#FFF'},
-  badgeKwh:{flex:1,backgroundColor:'#F0F0F5',borderRadius:14,padding:14,alignItems:'center'},
-  badgeKwhLabel:{fontSize:11,color:'#8E8E93',marginBottom:4},
-  badgeKwhValue:{fontSize:17,fontWeight:'700',color:'#2D3250'},
-  expTitle:{fontSize:18,fontWeight:'700',color:'#2D3250',marginBottom:14},
-  hogCard: { backgroundColor: '#FFF', borderRadius: 18, padding: 18, marginBottom: 24 },
-  hogRow: { marginBottom: 16 },
-  hogInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  hogName: { fontSize: 14, fontWeight: '600', color: '#2D3250' },
-  hogValue: { fontSize: 14, fontWeight: '700', color: '#2D3250' },
-  hogBarBg: { height: 6, backgroundColor: '#F0F0F5', borderRadius: 3, overflow: 'hidden' },
-  hogBarFill: { height: '100%', borderRadius: 3 },
-  emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 80, paddingHorizontal: 40 },
-  emptyText: { fontSize: 18, fontWeight: '700', color: '#2D3250', marginBottom: 8 },
-  emptySub: { fontSize: 14, color: '#8E8E93', textAlign: 'center', lineHeight: 20 },
+  container: { flex: 1, backgroundColor: '#FAFAFA' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, paddingVertical: 15 },
+  headerTitle: { fontSize: 16, fontWeight: '700', color: '#2D3250' },
+  backBtn: { padding: 5 },
+  menuBtn: { padding: 5 },
+  
+  scroll: { paddingBottom: 100 },
+  
+  tabWrap: { flexDirection: 'row', backgroundColor: '#F0F0F5', marginHorizontal: 25, padding: 5, borderRadius: 14, marginBottom: 30 },
+  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
+  tabActive: { backgroundColor: '#FFF', elevation: 1 },
+  tabText: { fontSize: 13, color: '#A0A0A0', fontWeight: '600' },
+  tabTextActive: { color: '#2D3250' },
+
+  chartBox: { paddingHorizontal: 25, marginBottom: 40 },
+  
+  statsRow: { flexDirection: 'row', gap: 15, paddingHorizontal: 25, marginBottom: 30 },
+  statCard: { flex: 1, backgroundColor: '#FFF', padding: 20, borderRadius: 20, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
+  statCardTan: { backgroundColor: '#D4A056' },
+  statLabel: { fontSize: 12, color: '#A0A0A0', marginBottom: 8 },
+  statLabelWhite: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginBottom: 8 },
+  statValue: { fontSize: 18, fontWeight: '800', color: '#2D3250' },
+  statValueWhite: { fontSize: 18, fontWeight: '800', color: '#FFF' },
+
+  expensesHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, marginBottom: 20 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#2D3250' },
+  
+  expenseList: { paddingHorizontal: 25 },
+  expenseItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF', padding: 15, borderRadius: 20, marginBottom: 12, elevation: 1 },
+  expenseItemActive: { borderColor: '#D4A056', borderWidth: 1 },
+  expenseLeft: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+  expenseIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#F9F9F9', justifyContent: 'center', alignItems: 'center' },
+  expenseMonth: { fontSize: 15, fontWeight: '700', color: '#2D3250' },
+  expenseKwh: { fontSize: 12, color: '#A0A0A0', marginTop: 2 },
+  expenseCost: { fontSize: 15, fontWeight: '800', color: '#2D3250' }
 });

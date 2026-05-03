@@ -11,6 +11,7 @@ interface BarChartProps {
   barColor?: string;
   activeBarColor?: string;
   activeIndex?: number;
+  onSelect?: (index: number) => void;
 }
 
 export default function BarChart({
@@ -20,11 +21,13 @@ export default function BarChart({
   barColor = '#E8E8ED',
   activeBarColor = '#2D3250',
   activeIndex = -1,
+  onSelect,
 }: BarChartProps) {
   const padding = { top: 20, right: 10, bottom: 30, left: 40 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
-  const maxValue = Math.max(...data.map(d => d.value), 1);
+  // Cap chart max value at 5000 as requested
+  const maxValue = 5000; 
 
   const barWidth = Math.min((chartWidth / data.length) * 0.5, 28);
   const barGap = (chartWidth - barWidth * data.length) / (data.length);
@@ -101,6 +104,7 @@ export default function BarChart({
                 height={animatedHeight as any}
                 rx={barWidth / 2}
                 fill={isActive ? activeBarColor : barColor}
+                onPress={() => onSelect && onSelect(index)}
               />
               <SvgText
                 x={x + barWidth / 2}

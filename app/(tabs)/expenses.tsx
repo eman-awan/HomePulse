@@ -13,33 +13,26 @@ const COLORS = ['#C5A85F', '#2D3250', '#6B8E9B', '#C55A5A', '#7B6B8D'];
 
 export default function Expenses() {
   const router = useRouter();
-  const { devices, fetchDevices, removeDevice } = useDeviceStore();
+  const { devices, fetchDevices, removeDevice, rooms } = useDeviceStore();
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<any>(null);
 
   useEffect(() => { fetchDevices(); }, []);
 
-  const deviceMap = new Map<string, { id: number, name: string; icon: string; count: number; cost: number }>();
-  
-  devices.forEach(d => {
-    // Grouping by type for display, but keeping the first id to allow deletion of a whole group or specific item if needed
-    // Simplified: Delete will just delete the first device of this type found
-    const key = d.type;
-    if (deviceMap.has(key)) {
-      const existing = deviceMap.get(key)!;
-      existing.count += d.device_count;
-      existing.cost += d.monthly_cost;
-    } else {
-      deviceMap.set(key, { id: d.id, name: d.name, icon: d.icon, count: d.device_count, cost: d.monthly_cost });
-    }
-  });
-  
-  const uniqueDevices = Array.from(deviceMap.values());
-  const maxCost = Math.max(...uniqueDevices.map(d => d.cost), 1);
+  const handleEditDevice = (device: any) => {
+    setSelectedDevice(device);
+    setIsModalVisible(true);
+  };
 
-  const confirmDelete = (type: string, name: string) => {
+  const handleAddDevice = () => {
+    setSelectedDevice(null);
+    setIsModalVisible(true);
+  };
+
+  const confirmDelete = (id: number, name: string) => {
     Alert.alert(
       "Remove Device",
-      `Are you sure you want to remove all ${name} devices?`,
+      `Are you sure you want to remove ${name}?`,
       [
         { text: "Cancel", style: "cancel" },
         { 
@@ -47,52 +40,58 @@ export default function Expenses() {
           style: "destructive",
           onPress: () => {
              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-             // Find all devices of this type and remove them
-             const devicesToRemove = devices.filter(d => d.type === type);
-             devicesToRemove.forEach(d => removeDevice(d.id));
+             removeDevice(id);
           }
         }
       ]
     );
   };
 
+  const maxCost = Math.max(...devices.map(d => d.monthly_cost), 1);
+
   return (
     <SafeScreen>
       <View style={s.wrap}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
           <View style={s.header}>
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/')}>
               <Svg width={22} height={22} viewBox="0 0 24 24" fill="none"><Path d="M19 12H5M12 19l-7-7 7-7" stroke="#2D3250" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
             </TouchableOpacity>
-            <Text style={s.title}>Expenses</Text>
+            <Text style={s.title}>Manage Devices</Text>
             <View style={{width:22}} />
           </View>
 
-          {uniqueDevices.map((d, i) => (
-            <TouchableOpacity 
-              key={d.name + i} 
-              style={s.row}
-              onLongPress={() => confirmDelete(d.icon, d.name)}
-              delayLongPress={500}
-            >
-              <View style={s.rowTop}>
-                <View style={s.iconWrap}>
-                  <DeviceIcon icon={d.icon} color="#2D3250" />
+          {devices.map((d, i) => {
+            const room = rooms.find(r => r.id === d.room_id);
+            return (
+              <TouchableOpacity 
+                key={d.id} 
+                style={s.row}
+                onPress={() => handleEditDevice(d)}
+                onLongPress={() => confirmDelete(d.id, d.name)}
+                delayLongPress={500}
+              >
+                <View style={s.rowTop}>
+                  <View style={s.iconWrap}>
+                    <DeviceIcon icon={d.icon} color="#2D3250" />
+                  </View>
+                  <View style={s.info}>
+                    <Text style={s.dName}>{d.name}</Text>
+                    <Text style={s.dSub}>{room?.name || 'Home'} · {d.energy_rate}W · (${d.monthly_cost.toFixed(2)})</Text>
+                  </View>
                 </View>
-                <View style={s.info}>
-                  <Text style={s.dName}>{d.name}</Text>
-                  <Text style={s.dSub}>{d.count} Device{d.count !== 1 ? 's' : ''} · (${d.cost.toFixed(2)})</Text>
-                </View>
-              </View>
-              <ProgressBar progress={d.cost / maxCost} color={COLORS[i % COLORS.length]} bgColor="#F0F0F5" height={6} />
-            </TouchableOpacity>
-          ))}
+                <ProgressBar progress={d.monthly_cost / maxCost} color={COLORS[i % COLORS.length]} bgColor="#F0F0F5" height={6} />
+              </TouchableOpacity>
+            );
+          })}
           
-          {uniqueDevices.length === 0 && (
-            <Text style={{textAlign: 'center', color: '#8E8E93', marginTop: 20}}>No devices found. Add one below!</Text>
+          {devices.length === 0 && (
+            <Text style={{textAlign: 'center', color: '#8E8E93', marginTop: 40, fontSize: 14}}>
+              No devices found.{"\n"}Build your smart home today!
+            </Text>
           )}
 
-          <TouchableOpacity style={s.addBtn} onPress={() => setIsModalVisible(true)}>
+          <TouchableOpacity style={s.addBtn} onPress={handleAddDevice}>
             <Text style={s.addBtnText}>ADD NEW DEVICE</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -102,6 +101,7 @@ export default function Expenses() {
       <AddDeviceModal 
         visible={isModalVisible} 
         onClose={() => setIsModalVisible(false)} 
+        initialDevice={selectedDevice}
       />
     </SafeScreen>
   );
