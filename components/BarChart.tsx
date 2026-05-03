@@ -18,7 +18,7 @@ export default function BarChart({
   width = 320,
   height = 180,
   barColor = '#E8E8ED',
-  activeBarColor = '#2D3250',
+  activeBarColor = '#1f233a',
   activeIndex = -1,
 }: BarChartProps) {
   const padding = { top: 20, right: 10, bottom: 30, left: 40 };
@@ -26,7 +26,7 @@ export default function BarChart({
   const chartHeight = height - padding.top - padding.bottom;
   const maxValue = Math.max(...data.map(d => d.value), 1);
 
-  const barWidth = Math.min((chartWidth / data.length) * 0.5, 28);
+  const barWidth = Math.min((chartWidth / data.length) * 0.6, 28);
   const barGap = (chartWidth - barWidth * data.length) / (data.length);
 
   // Y-axis labels
