@@ -14,7 +14,7 @@ interface ProgressBarProps {
 
 export default function ProgressBar({
   progress,
-  color = '#2D3250',
+  color = '#1f233a',
   bgColor = '#E8E8ED',
   height = 8,
   label,
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 11,
-    color: '#8E8E93',
+    color: '#6d6d76',
     marginTop: 4,
   },
 });
