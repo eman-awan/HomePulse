@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   deviceName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#2D3250',
+    color: '#1f233a',
     marginBottom: 2,
   },
   deviceCount: {
@@ -166,6 +166,6 @@ const styles = StyleSheet.create({
     color: '#C5A85F',
   },
   statusOff: {
-    color: '#8E8E93',
+    color: '#7a7a7e',
   },
 });
