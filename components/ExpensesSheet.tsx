@@ -7,7 +7,7 @@ import { DeviceIcon } from './DeviceCard';
 import DeviceModal from './AddDeviceModal';
 
 const { height } = Dimensions.get('window');
-const COLORS = ['#C5A85F', '#2D3250', '#6B8E9B', '#C55A5A', '#7B6B8D'];
+const COLORS = ['#C5A85F', '#1f233a', '#6B8E9B', '#C55A5A', '#645970'];
 
 interface ExpensesSheetProps {
   visible: boolean;
@@ -84,7 +84,7 @@ export default function ExpensesSheet({ visible, onClose }: ExpensesSheetProps) 
             <Text style={styles.title}>Expenses</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-                <Path d="M18 6L6 18M6 6l12 12" stroke="#2D3250" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                <Path d="M18 6L6 18M6 6l12 12" stroke="#1f233a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
               </Svg>
             </TouchableOpacity>
           </View>
@@ -101,7 +101,7 @@ export default function ExpensesSheet({ visible, onClose }: ExpensesSheetProps) 
               >
                 <View style={styles.rowTop}>
                   <View style={styles.iconWrap}>
-                    <DeviceIcon icon={d.icon} color="#2D3250" />
+                    <DeviceIcon icon={d.icon} color="#1f233a" />
                   </View>
                   <View style={styles.info}>
                     <Text style={styles.dName}>{d.name}</Text>
